@@ -11,34 +11,31 @@ def get_token_entropy(prompt, model, tokenizer, temperature=1.0):
     inputs = tokenizer(prompt, return_tensors="pt")
     outputs = model.generate(**inputs, do_sample=True, temperature=temperature, output_scores=True, return_dict_in_generate=True, max_new_tokens=50)
     
-    # The `scores` attribute contains the logits for the predicted tokens
     logits = outputs.scores
-    
+    generated_tokens = outputs.sequences[0][len(inputs['input_ids'][0]):]  
+
     entropies = []
 
-    # Calculate the probability distribution and entropy for each generated token
-    for logit in logits:
+    for i, logit in enumerate(logits):
         probabilities = torch.softmax(logit, dim=-1).detach().numpy()
         entropy = calculate_entropy(probabilities)
-        entropies.append(entropy)
+        entropies.append((generated_tokens[i].item(), entropy))
 
     return entropies
 
 def main():
-    # Load the pre-trained GPT-2 model and tokenizer (GPT-3/4 access might require API)
     model_name = "gpt2"
     tokenizer = GPT2Tokenizer.from_pretrained(model_name)
     model = GPT2LMHeadModel.from_pretrained(model_name)
 
     prompt = "Once upon a time in a land far, far away"
-    entropies = get_token_entropy(prompt, model, tokenizer, temperature=1.0)
+    token_entropies = get_token_entropy(prompt, model, tokenizer, temperature=1.0)
 
-    # Print the entropy of each predicted token
-    for idx, entropy in enumerate(entropies):
-        print(f"Generated Token {idx + 1}, Entropy: {entropy:.4f}")
+    for idx, (token_id, entropy) in enumerate(token_entropies):
+        token = tokenizer.decode([token_id])
+        print(f"Generated Token {idx + 1}: '{token}', Entropy: {entropy:.4f}")
 
-    # Print the average entropy
-    avg_entropy = np.mean(entropies)
+    avg_entropy = np.mean([entropy for _, entropy in token_entropies])
     print(f"Average Entropy: {avg_entropy:.4f}")
 
 if __name__ == "__main__":
